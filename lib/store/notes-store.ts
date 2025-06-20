@@ -46,6 +46,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+    
     set((state) => ({ 
       notes: [newNote, ...state.notes],
       currentNote: newNote,
@@ -54,8 +55,6 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   },
 
   updateNote: (id, updates) => {
-    const { pendingNotes } = get();
-    
     set((state) => ({
       notes: state.notes.map((note) =>
         note.id === id 
@@ -66,11 +65,6 @@ export const useNotesStore = create<NotesState>((set, get) => ({
         ? { ...state.currentNote, ...updates, updatedAt: new Date() }
         : state.currentNote,
     }));
-
-    // Mark note as edited if it was pending
-    if (pendingNotes.has(id)) {
-      get().markNoteAsEdited(id);
-    }
   },
 
   deleteNote: (id) => {
@@ -82,8 +76,11 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   },
 
   setCurrentNote: (note) => {
-    // Clean up empty notes when switching away
-    get().cleanupEmptyNotes();
+    // Clean up empty notes when switching away from current note
+    const { currentNote } = get();
+    if (currentNote && note?.id !== currentNote.id) {
+      get().cleanupEmptyNotes();
+    }
     set({ currentNote: note });
   },
 
@@ -102,12 +99,12 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   cleanupEmptyNotes: () => {
     const { notes, pendingNotes, currentNote } = get();
     
-    // Find pending notes that are empty (no title changes and no content)
+    // Find pending notes that are empty and not currently active
     const notesToDelete = notes.filter(note => 
       pendingNotes.has(note.id) && 
-      note.title === 'Untitled Note' && 
+      (note.title === 'Untitled Note' || note.title.trim() === '') && 
       note.content.trim() === '' &&
-      note.id !== currentNote?.id // Don't delete the currently active note
+      note.id !== currentNote?.id
     );
 
     if (notesToDelete.length > 0) {

@@ -37,7 +37,6 @@ export function NotesList() {
     getFilteredNotes,
     updateNote,
     deleteNote,
-    cleanupEmptyNotes,
   } = useNotesStore();
 
   // Initialize with sample notes if empty
@@ -47,13 +46,6 @@ export function NotesList() {
       setCurrentNote(sampleNotes[0]);
     }
   }, [notes.length, setNotes, setCurrentNote]);
-
-  // Cleanup empty notes when component unmounts or when switching notes
-  useEffect(() => {
-    return () => {
-      cleanupEmptyNotes();
-    };
-  }, [cleanupEmptyNotes]);
 
   const filteredNotes = useMemo(() => getFilteredNotes(), [getFilteredNotes]);
 
@@ -136,101 +128,104 @@ export function NotesList() {
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredNotes.map((note) => (
-                <div
-                  key={note.id}
-                  onClick={() => handleNoteSelect(note)}
-                  className={cn(
-                    'p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md group relative',
-                    currentNote?.id === note.id
-                      ? 'border-primary bg-primary/5 shadow-sm'
-                      : 'border-border hover:border-primary/50',
-                    pendingNotes.has(note.id) && 'border-dashed border-muted-foreground/50 bg-muted/30'
-                  )}
-                >
-                  {/* Pending indicator */}
-                  {pendingNotes.has(note.id) && (
-                    <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-                  )}
-                  
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className={cn(
-                      "font-medium line-clamp-1 flex-1",
-                      pendingNotes.has(note.id) ? 'text-muted-foreground italic' : 'text-foreground'
-                    )}>
-                      {note.title}
-                    </h3>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {note.isPinned && (
-                        <Pin className="h-4 w-4 text-primary" />
-                      )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-6 w-6 p-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreVertical className="h-3 w-3" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={(e) => {
-                            e.stopPropagation();
-                            handlePinToggle(note);
-                          }}>
-                            <Pin className="mr-2 h-4 w-4" />
-                            {note.isPinned ? 'Unpin' : 'Pin'}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => {
-                            e.stopPropagation();
-                            setCurrentNote(note);
-                          }}>
-                            <Edit3 className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={(e) => {
+              {filteredNotes.map((note) => {
+                const isPending = pendingNotes.has(note.id);
+                return (
+                  <div
+                    key={note.id}
+                    onClick={() => handleNoteSelect(note)}
+                    className={cn(
+                      'p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md group relative',
+                      currentNote?.id === note.id
+                        ? 'border-primary bg-primary/5 shadow-sm'
+                        : 'border-border hover:border-primary/50',
+                      isPending && 'border-dashed border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10'
+                    )}
+                  >
+                    {/* Pending indicator */}
+                    {isPending && (
+                      <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                    )}
+                    
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className={cn(
+                        "font-medium line-clamp-1 flex-1",
+                        isPending ? 'text-muted-foreground italic' : 'text-foreground'
+                      )}>
+                        {note.title}
+                      </h3>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {note.isPinned && (
+                          <Pin className="h-4 w-4 text-primary" />
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-6 w-6 p-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => {
                               e.stopPropagation();
-                              handleDelete(note);
-                            }}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                              handlePinToggle(note);
+                            }}>
+                              <Pin className="mr-2 h-4 w-4" />
+                              {note.isPinned ? 'Unpin' : 'Pin'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              setCurrentNote(note);
+                            }}>
+                              <Edit3 className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(note);
+                              }}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    <p className={cn(
+                      "text-sm line-clamp-2 mb-3",
+                      isPending ? 'text-muted-foreground/70' : 'text-muted-foreground'
+                    )}>
+                      {note.content.replace(/[#*`\n]/g, '').slice(0, 100) || (isPending ? 'Start typing to save this note...' : 'No content yet...')}
+                    </p>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap gap-1">
+                        {note.tags.slice(0, 3).map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {note.tags.length > 3 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{note.tags.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {isPending ? 'Just created' : formatDistanceToNow(note.updatedAt, { addSuffix: true })}
+                      </span>
                     </div>
                   </div>
-
-                  <p className={cn(
-                    "text-sm line-clamp-2 mb-3",
-                    pendingNotes.has(note.id) ? 'text-muted-foreground/70' : 'text-muted-foreground'
-                  )}>
-                    {note.content.replace(/[#*`\n]/g, '').slice(0, 100) || 'No content yet...'}
-                  </p>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-wrap gap-1">
-                      {note.tags.slice(0, 3).map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                      {note.tags.length > 3 && (
-                        <Badge variant="secondary" className="text-xs">
-                          +{note.tags.length - 3}
-                        </Badge>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(note.updatedAt, { addSuffix: true })}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

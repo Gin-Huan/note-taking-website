@@ -52,7 +52,7 @@ const CATEGORIES = [
 ];
 
 export function NoteEditor() {
-  const { currentNote, updateNote, markNoteAsEdited } = useNotesStore();
+  const { currentNote, updateNote, markNoteAsEdited, pendingNotes } = useNotesStore();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -61,7 +61,6 @@ export function NoteEditor() {
   const [isPinned, setIsPinned] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [activeTab, setActiveTab] = useState('edit');
-  const [hasBeenEdited, setHasBeenEdited] = useState(false);
 
   // Update local state when current note changes
   useEffect(() => {
@@ -72,7 +71,6 @@ export function NoteEditor() {
       setCategory(currentNote.category);
       setColor(currentNote.color);
       setIsPinned(currentNote.isPinned);
-      setHasBeenEdited(false);
     }
   }, [currentNote]);
 
@@ -91,11 +89,10 @@ export function NoteEditor() {
 
   // Mark note as edited when user makes changes
   const markAsEdited = useCallback(() => {
-    if (!hasBeenEdited && currentNote) {
-      setHasBeenEdited(true);
+    if (currentNote && pendingNotes.has(currentNote.id)) {
       markNoteAsEdited(currentNote.id);
     }
-  }, [hasBeenEdited, currentNote, markNoteAsEdited]);
+  }, [currentNote, pendingNotes, markNoteAsEdited]);
 
   // Auto-save functionality
   useEffect(() => {
@@ -109,13 +106,19 @@ export function NoteEditor() {
   }, [title, content, tags, category, color, isPinned, handleSave, currentNote]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTitle(e.target.value);
-    markAsEdited();
+    const newTitle = e.target.value;
+    setTitle(newTitle);
+    if (newTitle.trim() !== '' && newTitle !== 'Untitled Note') {
+      markAsEdited();
+    }
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
-    markAsEdited();
+    const newContent = e.target.value;
+    setContent(newContent);
+    if (newContent.trim() !== '') {
+      markAsEdited();
+    }
   };
 
   const handleAddTag = () => {
@@ -165,10 +168,20 @@ export function NoteEditor() {
     );
   }
 
+  const isPending = pendingNotes.has(currentNote.id);
+
   return (
     <div className="flex-1 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-border bg-background">
+        {isPending && (
+          <div className="mb-3 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+              ✏️ This is a new note. Start typing to save it, or it will be removed if you switch away.
+            </p>
+          </div>
+        )}
+        
         <div className="flex items-center justify-between mb-4">
           <Input
             value={title}
