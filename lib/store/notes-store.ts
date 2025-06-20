@@ -8,6 +8,7 @@ interface NotesState {
   currentNote: Note | null;
   filter: NotesFilter;
   isLoading: boolean;
+  pendingNotes: Set<string>; // Track notes that haven't been edited yet
   
   // Actions
   setNotes: (notes: Note[]) => void;
@@ -17,6 +18,8 @@ interface NotesState {
   setCurrentNote: (note: Note | null) => void;
   setFilter: (filter: Partial<NotesFilter>) => void;
   getFilteredNotes: () => Note[];
+  markNoteAsEdited: (id: string) => void;
+  cleanupEmptyNotes: () => void;
 }
 
 const defaultFilter: NotesFilter = {
@@ -32,6 +35,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   currentNote: null,
   filter: defaultFilter,
   isLoading: false,
+  pendingNotes: new Set(),
 
   setNotes: (notes) => set({ notes }),
 
@@ -45,10 +49,13 @@ export const useNotesStore = create<NotesState>((set, get) => ({
     set((state) => ({ 
       notes: [newNote, ...state.notes],
       currentNote: newNote,
+      pendingNotes: new Set([...state.pendingNotes, newNote.id]),
     }));
   },
 
   updateNote: (id, updates) => {
+    const { pendingNotes } = get();
+    
     set((state) => ({
       notes: state.notes.map((note) =>
         note.id === id 
@@ -59,21 +66,57 @@ export const useNotesStore = create<NotesState>((set, get) => ({
         ? { ...state.currentNote, ...updates, updatedAt: new Date() }
         : state.currentNote,
     }));
+
+    // Mark note as edited if it was pending
+    if (pendingNotes.has(id)) {
+      get().markNoteAsEdited(id);
+    }
   },
 
   deleteNote: (id) => {
     set((state) => ({
       notes: state.notes.filter((note) => note.id !== id),
       currentNote: state.currentNote?.id === id ? null : state.currentNote,
+      pendingNotes: new Set([...state.pendingNotes].filter(noteId => noteId !== id)),
     }));
   },
 
-  setCurrentNote: (note) => set({ currentNote: note }),
+  setCurrentNote: (note) => {
+    // Clean up empty notes when switching away
+    get().cleanupEmptyNotes();
+    set({ currentNote: note });
+  },
 
   setFilter: (filterUpdates) => {
     set((state) => ({
       filter: { ...state.filter, ...filterUpdates },
     }));
+  },
+
+  markNoteAsEdited: (id) => {
+    set((state) => ({
+      pendingNotes: new Set([...state.pendingNotes].filter(noteId => noteId !== id)),
+    }));
+  },
+
+  cleanupEmptyNotes: () => {
+    const { notes, pendingNotes, currentNote } = get();
+    
+    // Find pending notes that are empty (no title changes and no content)
+    const notesToDelete = notes.filter(note => 
+      pendingNotes.has(note.id) && 
+      note.title === 'Untitled Note' && 
+      note.content.trim() === '' &&
+      note.id !== currentNote?.id // Don't delete the currently active note
+    );
+
+    if (notesToDelete.length > 0) {
+      const idsToDelete = notesToDelete.map(note => note.id);
+      set((state) => ({
+        notes: state.notes.filter(note => !idsToDelete.includes(note.id)),
+        pendingNotes: new Set([...state.pendingNotes].filter(id => !idsToDelete.includes(id))),
+      }));
+    }
   },
 
   getFilteredNotes: () => {

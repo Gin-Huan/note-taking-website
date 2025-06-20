@@ -30,12 +30,14 @@ export function NotesList() {
     notes,
     currentNote,
     filter,
+    pendingNotes,
     setNotes,
     setCurrentNote,
     setFilter,
     getFilteredNotes,
     updateNote,
     deleteNote,
+    cleanupEmptyNotes,
   } = useNotesStore();
 
   // Initialize with sample notes if empty
@@ -45,6 +47,13 @@ export function NotesList() {
       setCurrentNote(sampleNotes[0]);
     }
   }, [notes.length, setNotes, setCurrentNote]);
+
+  // Cleanup empty notes when component unmounts or when switching notes
+  useEffect(() => {
+    return () => {
+      cleanupEmptyNotes();
+    };
+  }, [cleanupEmptyNotes]);
 
   const filteredNotes = useMemo(() => getFilteredNotes(), [getFilteredNotes]);
 
@@ -132,14 +141,23 @@ export function NotesList() {
                   key={note.id}
                   onClick={() => handleNoteSelect(note)}
                   className={cn(
-                    'p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md group',
+                    'p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md group relative',
                     currentNote?.id === note.id
                       ? 'border-primary bg-primary/5 shadow-sm'
-                      : 'border-border hover:border-primary/50'
+                      : 'border-border hover:border-primary/50',
+                    pendingNotes.has(note.id) && 'border-dashed border-muted-foreground/50 bg-muted/30'
                   )}
                 >
+                  {/* Pending indicator */}
+                  {pendingNotes.has(note.id) && (
+                    <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                  )}
+                  
                   <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-medium text-foreground line-clamp-1 flex-1">
+                    <h3 className={cn(
+                      "font-medium line-clamp-1 flex-1",
+                      pendingNotes.has(note.id) ? 'text-muted-foreground italic' : 'text-foreground'
+                    )}>
                       {note.title}
                     </h3>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -187,8 +205,11 @@ export function NotesList() {
                     </div>
                   </div>
 
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                    {note.content.replace(/[#*`\n]/g, '').slice(0, 100)}...
+                  <p className={cn(
+                    "text-sm line-clamp-2 mb-3",
+                    pendingNotes.has(note.id) ? 'text-muted-foreground/70' : 'text-muted-foreground'
+                  )}>
+                    {note.content.replace(/[#*`\n]/g, '').slice(0, 100) || 'No content yet...'}
                   </p>
 
                   <div className="flex items-center justify-between">

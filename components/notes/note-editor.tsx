@@ -52,7 +52,7 @@ const CATEGORIES = [
 ];
 
 export function NoteEditor() {
-  const { currentNote, updateNote } = useNotesStore();
+  const { currentNote, updateNote, markNoteAsEdited } = useNotesStore();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -61,6 +61,7 @@ export function NoteEditor() {
   const [isPinned, setIsPinned] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [activeTab, setActiveTab] = useState('edit');
+  const [hasBeenEdited, setHasBeenEdited] = useState(false);
 
   // Update local state when current note changes
   useEffect(() => {
@@ -71,6 +72,7 @@ export function NoteEditor() {
       setCategory(currentNote.category);
       setColor(currentNote.color);
       setIsPinned(currentNote.isPinned);
+      setHasBeenEdited(false);
     }
   }, [currentNote]);
 
@@ -87,6 +89,14 @@ export function NoteEditor() {
     });
   }, [currentNote, title, content, tags, category, color, isPinned, updateNote]);
 
+  // Mark note as edited when user makes changes
+  const markAsEdited = useCallback(() => {
+    if (!hasBeenEdited && currentNote) {
+      setHasBeenEdited(true);
+      markNoteAsEdited(currentNote.id);
+    }
+  }, [hasBeenEdited, currentNote, markNoteAsEdited]);
+
   // Auto-save functionality
   useEffect(() => {
     if (!currentNote) return;
@@ -98,15 +108,27 @@ export function NoteEditor() {
     return () => clearTimeout(timeoutId);
   }, [title, content, tags, category, color, isPinned, handleSave, currentNote]);
 
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
+    markAsEdited();
+  };
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setContent(e.target.value);
+    markAsEdited();
+  };
+
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
       setTags([...tags, tagInput.trim()]);
       setTagInput('');
+      markAsEdited();
     }
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
     setTags(tags.filter(tag => tag !== tagToRemove));
+    markAsEdited();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -114,6 +136,21 @@ export function NoteEditor() {
       e.preventDefault();
       handleAddTag();
     }
+  };
+
+  const handleCategoryChange = (newCategory: string) => {
+    setCategory(newCategory);
+    markAsEdited();
+  };
+
+  const handleColorChange = (newColor: string) => {
+    setColor(newColor);
+    markAsEdited();
+  };
+
+  const handlePinToggle = () => {
+    setIsPinned(!isPinned);
+    markAsEdited();
   };
 
   if (!currentNote) {
@@ -135,7 +172,7 @@ export function NoteEditor() {
         <div className="flex items-center justify-between mb-4">
           <Input
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={handleTitleChange}
             placeholder="Note title..."
             className="text-2xl font-bold border-none shadow-none p-0 h-auto bg-transparent focus-visible:ring-0"
           />
@@ -143,7 +180,7 @@ export function NoteEditor() {
             <Button
               variant={isPinned ? "default" : "outline"}
               size="sm"
-              onClick={() => setIsPinned(!isPinned)}
+              onClick={handlePinToggle}
             >
               <Pin className={cn("h-4 w-4", isPinned && "fill-current")} />
             </Button>
@@ -156,7 +193,7 @@ export function NoteEditor() {
 
         {/* Metadata */}
         <div className="flex items-center gap-4 flex-wrap">
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category} onValueChange={handleCategoryChange}>
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
@@ -181,7 +218,7 @@ export function NoteEditor() {
                 {NOTE_COLORS.map((noteColor) => (
                   <button
                     key={noteColor}
-                    onClick={() => setColor(noteColor)}
+                    onClick={() => handleColorChange(noteColor)}
                     className={cn(
                       "w-8 h-8 rounded-full border-2 transition-all",
                       color === noteColor 
@@ -253,7 +290,7 @@ export function NoteEditor() {
           <TabsContent value="edit" className="h-full mt-0">
             <Textarea
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={handleContentChange}
               placeholder="Start writing your note... You can use Markdown formatting!"
               className="h-full resize-none border-none shadow-none focus-visible:ring-0 p-4"
             />
