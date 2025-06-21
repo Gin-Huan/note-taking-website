@@ -14,6 +14,7 @@ interface NotesState {
   setNotes: (notes: Note[]) => void;
   addNote: (note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateNote: (id: string, updates: Partial<Note>) => void;
+  updateNoteMetadata: (id: string, updates: Partial<Note>) => void;
   deleteNote: (id: string) => void;
   setCurrentNote: (note: Note | null) => void;
   setFilter: (filter: Partial<NotesFilter>) => void;
@@ -55,6 +56,49 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   },
 
   updateNote: (id, updates) => {
+    set((state) => {
+      const updatedNote = state.notes.find(note => note.id === id);
+      if (!updatedNote) return state;
+
+      // Check if content or title has actually changed
+      const hasContentChanged = updates.content !== undefined && updates.content !== updatedNote.content;
+      const hasTitleChanged = updates.title !== undefined && updates.title !== updatedNote.title;
+      
+      // Only update timestamp if content or title changed
+      const shouldUpdateTimestamp = hasContentChanged || hasTitleChanged;
+      
+      const updatedNoteWithChanges = { 
+        ...updatedNote, 
+        ...updates, 
+        updatedAt: shouldUpdateTimestamp ? new Date() : updatedNote.updatedAt
+      };
+
+      // Only move note to top if content or title changed
+      if (shouldUpdateTimestamp) {
+        const otherNotes = state.notes.filter(note => note.id !== id);
+        const newNotes = [updatedNoteWithChanges, ...otherNotes];
+
+        return {
+          notes: newNotes,
+          currentNote: state.currentNote?.id === id 
+            ? updatedNoteWithChanges
+            : state.currentNote,
+        };
+      } else {
+        // Just update the note in place without moving it
+        return {
+          notes: state.notes.map((note) =>
+            note.id === id ? updatedNoteWithChanges : note
+          ),
+          currentNote: state.currentNote?.id === id 
+            ? updatedNoteWithChanges
+            : state.currentNote,
+        };
+      }
+    });
+  },
+
+  updateNoteMetadata: (id, updates) => {
     set((state) => ({
       notes: state.notes.map((note) =>
         note.id === id 
@@ -77,8 +121,17 @@ export const useNotesStore = create<NotesState>((set, get) => ({
 
   setCurrentNote: (note) => {
     // Clean up empty notes when switching away from current note
-    const { currentNote } = get();
+    const { currentNote, pendingNotes } = get();
     if (currentNote && note?.id !== currentNote.id) {
+      // If switching away from a pending note that hasn't been edited, remove it
+      if (pendingNotes.has(currentNote.id)) {
+        set((state) => ({
+          notes: state.notes.filter(n => n.id !== currentNote.id),
+          pendingNotes: new Set([...state.pendingNotes].filter(id => id !== currentNote.id)),
+          currentNote: note,
+        }));
+        return; // Don't call cleanupEmptyNotes since we already handled it
+      }
       get().cleanupEmptyNotes();
     }
     set({ currentNote: note });
@@ -102,7 +155,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
     // Find pending notes that are empty and not currently active
     const notesToDelete = notes.filter(note => 
       pendingNotes.has(note.id) && 
-      (note.title === 'Untitled Note' || note.title.trim() === '') && 
+      note.title.trim() === '' && 
       note.content.trim() === '' &&
       note.id !== currentNote?.id
     );
@@ -143,34 +196,36 @@ export const useNotesStore = create<NotesState>((set, get) => ({
       );
     }
 
-    // Sort
-    filtered.sort((a, b) => {
-      let aValue, bValue;
-      
-      switch (filter.sortBy) {
-        case 'title':
-          aValue = a.title.toLowerCase();
-          bValue = b.title.toLowerCase();
-          break;
-        case 'created':
-          aValue = a.createdAt.getTime();
-          bValue = b.createdAt.getTime();
-          break;
-        case 'updated':
-        default:
-          aValue = a.updatedAt.getTime();
-          bValue = b.updatedAt.getTime();
-          break;
-      }
+    // Only apply sorting if explicitly requested (not for default "updated" sort)
+    if (filter.sortBy !== 'updated' || filter.sortOrder !== 'desc') {
+      filtered.sort((a, b) => {
+        let aValue, bValue;
+        
+        switch (filter.sortBy) {
+          case 'title':
+            aValue = a.title.toLowerCase();
+            bValue = b.title.toLowerCase();
+            break;
+          case 'created':
+            aValue = a.createdAt.getTime();
+            bValue = b.createdAt.getTime();
+            break;
+          case 'updated':
+          default:
+            aValue = a.updatedAt.getTime();
+            bValue = b.updatedAt.getTime();
+            break;
+        }
 
-      if (filter.sortOrder === 'asc') {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-      }
-    });
+        if (filter.sortOrder === 'asc') {
+          return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        } else {
+          return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+        }
+      });
+    }
 
-    // Pinned notes first
+    // Pinned notes first, then maintain the existing order
     return filtered.sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;

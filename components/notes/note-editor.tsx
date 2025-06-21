@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Eye, 
@@ -13,7 +12,6 @@ import {
   Tag, 
   Palette,
   Pin,
-  MoreHorizontal 
 } from 'lucide-react';
 import {
   Popover,
@@ -29,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { useNotesStore } from '@/lib/store/notes-store';
 import { MarkdownPreview } from './markdown-preview';
+import { MarkdownEditorComponent } from './markdown-editor';
 import { cn } from '@/lib/utils';
 
 const NOTE_COLORS = [
@@ -52,7 +51,7 @@ const CATEGORIES = [
 ];
 
 export function NoteEditor() {
-  const { currentNote, updateNote, markNoteAsEdited, pendingNotes } = useNotesStore();
+  const { currentNote, updateNote, updateNoteMetadata, markNoteAsEdited, pendingNotes } = useNotesStore();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -113,8 +112,7 @@ export function NoteEditor() {
     }
   };
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newContent = e.target.value;
+  const handleContentChange = (newContent: string) => {
     setContent(newContent);
     if (newContent.trim() !== '') {
       markAsEdited();
@@ -301,11 +299,11 @@ export function NoteEditor() {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="edit" className="h-full mt-0">
-            <Textarea
-              value={content}
+            <MarkdownEditorComponent
+              content={content}
               onChange={handleContentChange}
-              placeholder="Start writing your note... You can use Markdown formatting!"
-              className="h-full resize-none border-none shadow-none focus-visible:ring-0 p-4"
+              placeholder="Start writing your note... You can use Markdown formatting and tables!"
+              className="h-full"
             />
           </TabsContent>
           <TabsContent value="preview" className="h-full mt-0">

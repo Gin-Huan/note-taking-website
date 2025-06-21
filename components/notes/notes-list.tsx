@@ -35,7 +35,7 @@ export function NotesList() {
     setCurrentNote,
     setFilter,
     getFilteredNotes,
-    updateNote,
+    updateNoteMetadata,
     deleteNote,
   } = useNotesStore();
 
@@ -47,14 +47,14 @@ export function NotesList() {
     }
   }, [notes.length, setNotes, setCurrentNote]);
 
-  const filteredNotes = useMemo(() => getFilteredNotes(), [getFilteredNotes]);
+  const filteredNotes = useMemo(() => getFilteredNotes(), [notes, filter, pendingNotes]);
 
   const handleNoteSelect = (note: Note) => {
     setCurrentNote(note);
   };
 
   const handlePinToggle = (note: Note) => {
-    updateNote(note.id, { isPinned: !note.isPinned });
+    updateNoteMetadata(note.id, { isPinned: !note.isPinned });
   };
 
   const handleDelete = (note: Note) => {
