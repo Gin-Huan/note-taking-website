@@ -1,13 +1,12 @@
-import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { ThemeProvider } from 'next-themes';
-import { Toaster } from '@/components/ui/sonner';
+import './globals.css';
+import { AuthProvider } from '@/components/providers/auth-provider';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'NotesApp - Your Personal Note-Taking Space',
+  title: 'NotesApp - Your Personal Note Taking App',
   description: 'A beautiful, modern note-taking application with markdown support, search, and organization features.',
 };
 
@@ -17,17 +16,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body className={inter.className}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <AuthProvider>
           {children}
-          <Toaster />
-        </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

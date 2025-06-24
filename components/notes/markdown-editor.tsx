@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import MarkdownEditor from 'react-markdown-editor-lite';
 import 'react-markdown-editor-lite/lib/index.css';
+import MarkdownIt from 'markdown-it';
 
 interface MarkdownEditorProps {
   content: string;
@@ -10,6 +11,9 @@ interface MarkdownEditorProps {
   placeholder?: string;
   className?: string;
 }
+
+const mdParser = new MarkdownIt();
+
 
 export function MarkdownEditorComponent({ content, onChange, placeholder, className }: MarkdownEditorProps) {
   const mdEditor = useRef<MarkdownEditor>(null);
@@ -54,6 +58,9 @@ export function MarkdownEditorComponent({ content, onChange, placeholder, classN
           'mode-toggle',
           'full-screen'
         ]}
+        renderHTML={(text) => {
+          return mdParser.render(text);
+        }}
       />
     </div>
   );
