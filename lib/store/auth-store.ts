@@ -55,7 +55,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const user = await apiClient.getCurrentUser();
       set({ 
-        user, 
+        user: user.data, 
         isAuthenticated: true, 
         isLoading: false, 
         isInitialized: true 

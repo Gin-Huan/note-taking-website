@@ -268,7 +268,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
       // Only update timestamp if content or title changed
       const shouldUpdateTimestamp = hasContentChanged || hasTitleChanged;
 
-      const now = new Date().toUTCString();
+      const now = new Date();
       
       const updatedNoteWithChanges = { 
         ...updatedNote, 
