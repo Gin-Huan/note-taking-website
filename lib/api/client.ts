@@ -87,8 +87,17 @@ class ApiClient {
   }
 
   // Notes endpoints
-  async getNotes(page: number = 1, limit: number = 10): Promise<ApiResponse<NotesResponse>> {
-    return this.request<ApiResponse<NotesResponse>>(`/notes?page=${page}&limit=${limit}`);
+  async getNotes(page: number = 1, limit: number = 10, isArchived?: boolean): Promise<ApiResponse<NotesResponse>> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    
+    if (isArchived !== undefined) {
+      params.append('isArchived', isArchived.toString());
+    }
+    
+    return this.request<ApiResponse<NotesResponse>>(`/notes?${params.toString()}`);
   }
 
   async getNote(id: string): Promise<ApiResponse<Note>> {

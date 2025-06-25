@@ -70,7 +70,7 @@ A modern, feature-rich note-taking application built with Next.js, TypeScript, a
 
 ## 🛠️ Tech Stack
 
-- **Framework**: Next.js 14 with App Router
+- **Framework**: Next.js 13
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **State Management**: Zustand

@@ -33,6 +33,7 @@ import { MarkdownEditorComponent } from './markdown-editor';
 import { cn } from '@/lib/utils';
 
 const NOTE_COLORS = [
+  '#FFFFFF', // White
   '#3B82F6', // Blue
   '#10B981', // Green
   '#F59E0B', // Yellow
@@ -40,7 +41,6 @@ const NOTE_COLORS = [
   '#8B5CF6', // Purple
   '#06B6D4', // Cyan
   '#F97316', // Orange
-  '#EC4899', // Pink
 ];
 
 const CATEGORIES = [
@@ -53,12 +53,21 @@ const CATEGORIES = [
 ];
 
 export function NoteEditor() {
-  const { currentNote, updateNote, updateNoteMetadata, markNoteAsEdited, pendingNotes, updateNoteAPI, createNoteAPI, error } = useNotesStore();
+  const { 
+    currentNote, 
+    updateNote, 
+    updateNoteMetadata, 
+    markNoteAsEdited, 
+    pendingNotes, 
+    updateNoteAPI, 
+    createNoteAPI, 
+  } = useNotesStore();
+  
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [category, setCategory] = useState('general');
-  const [color, setColor] = useState('#3B82F6');
+  const [color, setColor] = useState('#FFFFFF');
   const [isPinned, setIsPinned] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [activeTab, setActiveTab] = useState('edit');
@@ -114,29 +123,39 @@ export function NoteEditor() {
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setTitle(newTitle);
-    if (newTitle.trim() !== '' && newTitle !== 'Untitled Note') {
-      markAsEdited();
+    if (currentNote) {
+      updateNote(currentNote.id, { title: newTitle });
+      markNoteAsEdited(currentNote.id);
     }
   };
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
-    if (newContent.trim() !== '') {
-      markAsEdited();
+    if (currentNote) {
+      updateNote(currentNote.id, { content: newContent });
+      markNoteAsEdited(currentNote.id);
     }
   };
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-      setTags([...tags, tagInput.trim()]);
+      const newTags = [...tags, tagInput.trim()];
+      setTags(newTags);
+      if (currentNote) {
+        updateNote(currentNote.id, { tags: newTags });
+        markNoteAsEdited(currentNote.id);
+      }
       setTagInput('');
-      markAsEdited();
     }
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
-    markAsEdited();
+    const newTags = tags.filter(tag => tag !== tagToRemove);
+    setTags(newTags);
+    if (currentNote) {
+      updateNote(currentNote.id, { tags: newTags });
+      markNoteAsEdited(currentNote.id);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -148,12 +167,18 @@ export function NoteEditor() {
 
   const handleCategoryChange = (newCategory: string) => {
     setCategory(newCategory);
-    markAsEdited();
+    if (currentNote) {
+      updateNote(currentNote.id, { category: newCategory });
+      markNoteAsEdited(currentNote.id);
+    }
   };
 
   const handleColorChange = (newColor: string) => {
     setColor(newColor);
-    markAsEdited();
+    if (currentNote) {
+      updateNote(currentNote.id, { color: newColor });
+      markNoteAsEdited(currentNote.id);
+    }
   };
 
   const handlePinToggle = async () => {
@@ -162,9 +187,10 @@ export function NoteEditor() {
     const newPinStatus = !isPinned;
     setIsPinned(newPinStatus);
     
-    // If this is a draft note, just mark as edited (will be saved when user clicks Save)
+    // If this is a draft note, update store immediately
     if (pendingNotes.has(currentNote.id)) {
-      markAsEdited();
+      updateNote(currentNote.id, { isPinned: newPinStatus });
+      markNoteAsEdited(currentNote.id);
       return;
     }
     
@@ -216,40 +242,25 @@ export function NoteEditor() {
           </div>
         )}
         
-        {error && (
-          <div className="mb-3">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </div>
-        )}
-        
         <div className="flex items-center justify-between mb-4">
-          <Input
-            value={title}
-            onChange={handleTitleChange}
-            placeholder="Note title..."
-            className="text-2xl font-bold border-none shadow-none p-0 h-auto bg-transparent focus-visible:ring-0"
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Note title..."
+              value={title}
+              onChange={handleTitleChange}
+              className="text-lg font-semibold border-none shadow-none focus-visible:ring-0 px-0"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <Button
-              variant={isPinned ? "default" : "outline"}
+              variant="outline"
               size="sm"
               onClick={handlePinToggle}
               disabled={isPinLoading}
-              className={cn(
-                isPinned && "bg-amber-500 hover:bg-amber-600 text-white border-amber-500",
-                isPinLoading && "opacity-50"
-              )}
             >
-              <Pin className={cn("h-4 w-4", isPinned && "fill-current", isPinLoading && "animate-spin")} />
+              <Pin className={cn("h-4 w-4", isPinLoading && "animate-spin")} />
             </Button>
-            <Button 
-              onClick={handleSave} 
-              size="sm"
-              className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
-            >
+            <Button onClick={handleSave} size="sm">
               <Save className="h-4 w-4 mr-2" />
               Save
             </Button>

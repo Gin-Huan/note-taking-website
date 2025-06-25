@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -8,13 +8,23 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Pin, MoreVertical, Trash2, Edit3, RefreshCw, AlertCircle } from 'lucide-react';
+import { Search, Pin, MoreVertical, Trash2, RefreshCw, AlertCircle, Archive, RotateCcw, CheckCircle } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,37 +33,95 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useNotesStore } from '@/lib/store/notes-store';
 import { Note } from '@/lib/types/note';
-import { cn, getLocalTimezoneLabel } from '@/lib/utils';
+import { cn, convertUTCDateToLocalDate } from '@/lib/utils';
+import { useIntersectionObserver } from '@/hooks/use-debounce';
 
-export function NotesList() {
+interface NotesListProps {
+  onNoteClick?: (noteId: string) => void;
+}
+
+export function NotesList({ onNoteClick }: NotesListProps) {
   const {
     notes,
     currentNote,
     filter,
     pendingNotes,
     isLoading,
+    isLoadingMore,
     error,
     pagination,
+    isArchived,
     fetchNotes,
+    loadMoreNotes,
     setCurrentNote,
     setFilter,
     getFilteredNotes,
     updateNoteMetadata,
     updateNoteAPI,
     deleteNoteAPI,
+    saveMessage,
+    setSaveMessage,
+    setError,
   } = useNotesStore();
 
   const [pinLoadingStates, setPinLoadingStates] = useState<Set<string>>(new Set());
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  const filteredNotes = useMemo(() => getFilteredNotes(), [notes, filter, pendingNotes]);
+
+  // Intersection observer for lazy loading
+  const handleLoadMore = useCallback(() => {
+    if (!isLoadingMore && pagination.page < pagination.totalPages) {
+      loadMoreNotes();
+    }
+  }, [isLoadingMore, pagination.page, pagination.totalPages, loadMoreNotes]);
+
+  const observer = useIntersectionObserver(handleLoadMore, {
+    rootMargin: '100px',
+  });
+
+  // Observe the load more element
+  useEffect(() => {
+    if (loadMoreRef.current && observer) {
+      observer.observe(loadMoreRef.current);
+    }
+  }, [observer, filteredNotes.length]);
 
   // Fetch notes from API on component mount
   useEffect(() => {
     fetchNotes();
   }, [fetchNotes]);
 
-  const filteredNotes = useMemo(() => getFilteredNotes(), [notes, filter, pendingNotes]);
+  // Clear save message after 3 seconds
+  useEffect(() => {
+    if (saveMessage) {
+      const timer = setTimeout(() => {
+        setSaveMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [saveMessage, setSaveMessage]);
+
+  // Clear error message after 3 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, setError]);
 
   const handleNoteSelect = (note: Note) => {
-    setCurrentNote(note);
+    if (onNoteClick) {
+      // Mobile: use the callback to open modal
+      onNoteClick(note.id);
+    } else {
+      // Desktop: set current note in store
+      setCurrentNote(note);
+    }
   };
 
   const handlePinToggle = async (note: Note) => {
@@ -75,7 +143,41 @@ export function NotesList() {
   };
 
   const handleDelete = (note: Note) => {
-    deleteNoteAPI(note.id);
+    setNoteToDelete(note);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleArchiveToggle = async (note: Note) => {
+    try {
+      // Update via API to persist the archive/unarchive status
+      await updateNoteAPI(note.id, { isArchived: !note.isArchived });
+      
+      // Clear current note if it's the one being archived
+      if (currentNote?.id === note.id) {
+        setCurrentNote(null);
+      }
+      
+      // Refresh the notes list to show the updated state
+      // This ensures the note appears in the correct list (archived or active)
+      fetchNotes(pagination.page, pagination.limit, isArchived);
+    } catch (error) {
+      console.error('Failed to update archive status:', error);
+      // Fallback to local update if API fails
+      updateNoteMetadata(note.id, { isArchived: !note.isArchived });
+    }
+  };
+
+  const confirmDelete = () => {
+    if (noteToDelete) {
+      deleteNoteAPI(noteToDelete.id);
+    }
+    setDeleteDialogOpen(false);
+    setNoteToDelete(null);
+  };
+
+  const cancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setNoteToDelete(null);
   };
 
   const handleRefresh = () => {
@@ -89,7 +191,7 @@ export function NotesList() {
 
   if (isLoading && notes.length === 0) {
     return (
-      <div className="flex flex-col h-full w-80 border-r border-border bg-background">
+      <div className="flex flex-col h-full w-full lg:w-80 border-r border-border bg-background">
         <div className="p-4 border-b border-border">
           <div className="space-y-4">
             <div className="relative">
@@ -125,7 +227,7 @@ export function NotesList() {
   }
 
   return (
-    <div className="flex flex-col h-full w-80 border-r border-border bg-background">
+    <div className="flex flex-col h-full w-full lg:w-80 border-r border-border bg-background">
       {/* Header */}
       <div className="p-4 border-b border-border bg-background">
         <div className="space-y-4">
@@ -133,26 +235,25 @@ export function NotesList() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search notes..."
+                placeholder={isArchived ? "Search archived notes..." : "Search notes..."}
                 value={filter.search}
                 onChange={(e) => setFilter({ search: e.target.value })}
                 className="pl-10"
               />
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isLoading}
-            >
-              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-            </Button>
           </div>
           
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {saveMessage && (
+            <Alert variant="default" className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+              <CheckCircle className="h-4 w-4 text-sm text-green-800 dark:text-green-200" />
+              <AlertDescription>{saveMessage}</AlertDescription>
             </Alert>
           )}
           
@@ -185,14 +286,13 @@ export function NotesList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="updated-desc">Recently Updated</SelectItem>
-                  <SelectItem value="created-desc">Recently Created</SelectItem>
                   <SelectItem value="title-asc">Title A-Z</SelectItem>
                   <SelectItem value="title-desc">Title Z-A</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="text-sm text-muted-foreground ml-4">
-              {pagination.total} notes
+            <div className="text-sm text-muted-foreground ml-4 hidden lg:block">
+              {pagination.total} {isArchived ? 'archived' : ''} notes
             </div>
           </div>
         </div>
@@ -204,8 +304,15 @@ export function NotesList() {
           {filteredNotes.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium mb-2">No notes found</p>
-              <p className="text-sm">Try adjusting your search or filters</p>
+              <p className="text-lg font-medium mb-2">
+                {isArchived ? 'No archived notes found' : 'No notes found'}
+              </p>
+              <p className="text-sm">
+                {isArchived 
+                  ? 'Archived notes will appear here when you archive them'
+                  : 'Try adjusting your search or filters'
+                }
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -244,7 +351,7 @@ export function NotesList() {
                       )}>
                         {note.title}
                       </h3>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {!isPending && <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button 
@@ -267,26 +374,42 @@ export function NotesList() {
                               <Pin className={cn("mr-2 h-4 w-4", pinLoadingStates.has(note.id) && "animate-spin")} />
                               {note.isPinned ? 'Unpin' : 'Pin'}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => {
-                              e.stopPropagation();
-                              setCurrentNote(note);
-                            }}>
-                              <Edit3 className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(note);
-                              }}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
+                            {!isArchived ? (
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleArchiveToggle(note);
+                                }}
+                              >
+                                <Archive className="mr-2 h-4 w-4" />
+                                Archive
+                              </DropdownMenuItem>
+                            ) : (
+                              <>
+                                <DropdownMenuItem 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleArchiveToggle(note);
+                                  }}
+                                >
+                                  <RotateCcw className="mr-2 h-4 w-4" />
+                                  Unarchive
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(note);
+                                  }}
+                                  className="text-destructive"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </div>
+                      </div>}
                     </div>
 
                     <p className={cn(
@@ -316,16 +439,55 @@ export function NotesList() {
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {isPending ? 'Just created' : formatDistanceToNow(note.updatedAt, { addSuffix: true })}
+                        {isPending ? 'Just created' : formatDistanceToNow(convertUTCDateToLocalDate(note.updatedAt), { addSuffix: true })}
                       </span>
                     </div>
                   </div>
                 );
               })}
+              
+              {/* Loading indicator for lazy loading */}
+              {pagination.page < pagination.totalPages && (
+                <div 
+                  ref={loadMoreRef}
+                  className="flex items-center justify-center py-4"
+                >
+                  {isLoadingMore ? (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Loading more notes...</span>
+                    </div>
+                  ) : (
+                    <div className="h-4" /> // Invisible element for intersection observer
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
       </ScrollArea>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Note</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this note? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelDelete}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Note
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

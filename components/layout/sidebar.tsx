@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -22,6 +22,7 @@ import {
   Moon,
   Menu,
   X,
+  Archive,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useAuthStore } from '@/lib/store/auth-store';
@@ -36,22 +37,50 @@ export function Sidebar({ className }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuthStore();
-  const { addNote } = useNotesStore();
+  const { addNote, isArchived, setArchived } = useNotesStore();
+
+  // Check if we're on mobile and set initial collapsed state
+  useEffect(() => {
+    const checkMobile = () => {
+      const isMobile = window.innerWidth < 1024; // lg breakpoint
+      setIsCollapsed(isMobile);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleNewNote = () => {
+    // Don't allow creating new notes when viewing archived notes
+    if (isArchived) {
+      return;
+    }
+    
     addNote({
       title: 'Untitled Note',
       content: '',
       tags: [],
       category: 'general',
       isPinned: false,
-      color: '#3B82F6',
+      isArchived: false,
+      color: '#FFFFFF',
     });
   };
 
   const menuItems = [
-    { icon: FileText, label: 'All Notes', active: true },
-    { icon: Search, label: 'Search', active: false },
+    { 
+      icon: FileText, 
+      label: 'All Notes', 
+      active: !isArchived,
+      onClick: () => setArchived(false)
+    },
+    { 
+      icon: Archive, 
+      label: 'Archived', 
+      active: isArchived,
+      onClick: () => setArchived(true)
+    },
   ];
 
   return (
@@ -81,6 +110,7 @@ export function Sidebar({ className }: SidebarProps) {
           onClick={handleNewNote}
           className="w-full justify-start gap-2"
           size={isCollapsed ? "sm" : "default"}
+          disabled={isArchived}
         >
           <Plus className="h-4 w-4" />
           {!isCollapsed && 'New Note'}
@@ -99,6 +129,7 @@ export function Sidebar({ className }: SidebarProps) {
                 isCollapsed && "justify-center"
               )}
               size={isCollapsed ? "sm" : "default"}
+              onClick={item.onClick}
             >
               <item.icon className="h-4 w-4" />
               {!isCollapsed && item.label}
