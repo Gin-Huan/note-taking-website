@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { Note, NotesFilter } from '@/lib/types/note';
+import { apiClient } from '@/lib/api/client';
 
 interface NotesState {
   notes: Note[];
@@ -9,6 +10,13 @@ interface NotesState {
   filter: NotesFilter;
   isLoading: boolean;
   pendingNotes: Set<string>; // Track notes that haven't been edited yet
+  error: string | null;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
   
   // Actions
   setNotes: (notes: Note[]) => void;
@@ -21,6 +29,13 @@ interface NotesState {
   getFilteredNotes: () => Note[];
   markNoteAsEdited: (id: string) => void;
   cleanupEmptyNotes: () => void;
+  
+  // API Actions
+  fetchNotes: (page?: number, limit?: number) => Promise<void>;
+  createNoteAPI: (noteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>, originalId?: string) => Promise<void>;
+  updateNoteAPI: (id: string, updates: Partial<Note>) => Promise<void>;
+  deleteNoteAPI: (id: string) => Promise<void>;
+  setError: (error: string | null) => void;
 }
 
 const defaultFilter: NotesFilter = {
@@ -37,8 +52,124 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   filter: defaultFilter,
   isLoading: false,
   pendingNotes: new Set(),
+  error: null,
+  pagination: {
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  },
 
   setNotes: (notes) => set({ notes }),
+
+  setError: (error) => set({ error }),
+
+  // API Methods
+  fetchNotes: async (page = 1, limit = 10) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await apiClient.getNotes(page, limit);
+      // Transform the API response to match our Note interface
+      const notes = response.data?.notes || [];
+      const transformedNotes = notes.map((note: any) => ({
+        ...note,
+        createdAt: new Date(note.createdAt),
+        updatedAt: new Date(note.updatedAt),
+      }));
+      
+      set({ 
+        notes: transformedNotes, 
+        isLoading: false,
+        pagination: {
+          page: response.data?.page || 1,
+          limit: response.data?.limit || 10,
+          total: response.data?.total || 0,
+          totalPages: response.data?.totalPages || 0,
+        }
+      });
+    } catch (error) {
+      console.error('Failed to fetch notes:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to fetch notes',
+        isLoading: false 
+      });
+    }
+  },
+
+  createNoteAPI: async (noteData, originalId?: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      console.log('Creating note via API:', { noteData, originalId });
+      const response = await apiClient.createNote(noteData);
+      const newNote = {
+        ...response.data,
+        createdAt: new Date(response.data.createdAt),
+        updatedAt: new Date(response.data.updatedAt),
+      };
+      console.log('Note created successfully:', { newNote, originalId });
+      
+      set((state) => {
+        // Remove the original draft note and add the server-created note
+        const notesWithoutDraft = state.notes.filter(note => note.id !== originalId);
+        console.log('Replacing draft note:', { 
+          originalId, 
+          notesBefore: state.notes.length, 
+          notesAfter: notesWithoutDraft.length + 1 
+        });
+        
+        return {
+          notes: [newNote, ...notesWithoutDraft],
+          currentNote: newNote,
+          pendingNotes: new Set([...state.pendingNotes].filter(noteId => noteId !== originalId)),
+          isLoading: false,
+        };
+      });
+    } catch (error) {
+      console.error('Failed to create note:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to create note',
+        isLoading: false 
+      });
+    }
+  },
+
+  updateNoteAPI: async (id, updates) => {
+    set({ error: null });
+    try {
+      const response = await apiClient.updateNote(id, updates);
+      const updatedNote = {
+        ...response.data,
+        createdAt: new Date(response.data.createdAt),
+        updatedAt: new Date(response.data.updatedAt),
+      };
+      
+      set((state) => {
+        const otherNotes = state.notes.filter(note => note.id !== id);
+        return {
+          notes: [updatedNote, ...otherNotes],
+          currentNote: state.currentNote?.id === id ? updatedNote : state.currentNote,
+        };
+      });
+    } catch (error) {
+      console.error('Failed to update note:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to update note' });
+    }
+  },
+
+  deleteNoteAPI: async (id) => {
+    set({ error: null });
+    try {
+      await apiClient.deleteNote(id);
+      set((state) => ({
+        notes: state.notes.filter((note) => note.id !== id),
+        currentNote: state.currentNote?.id === id ? null : state.currentNote,
+        pendingNotes: new Set([...state.pendingNotes].filter(noteId => noteId !== id)),
+      }));
+    } catch (error) {
+      console.error('Failed to delete note:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to delete note' });
+    }
+  },
 
   addNote: (noteData) => {
     const newNote: Note = {
@@ -144,9 +275,9 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   },
 
   markNoteAsEdited: (id) => {
-    set((state) => ({
-      pendingNotes: new Set([...state.pendingNotes].filter(noteId => noteId !== id)),
-    }));
+    // Don't remove from pendingNotes when editing - only remove when successfully saved
+    // This ensures draft notes stay in pendingNotes until they're actually created via API
+    console.log('Note marked as edited:', id, 'but keeping in pendingNotes');
   },
 
   cleanupEmptyNotes: () => {

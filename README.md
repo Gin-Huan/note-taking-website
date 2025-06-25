@@ -31,12 +31,6 @@ A modern, feature-rich note-taking application built with Next.js, TypeScript, a
 - **Profile Management**: User profiles with avatars and settings
 - **Session Management**: Persistent login sessions
 
-### 💾 Data Management
-- **Local Storage**: Notes stored locally for privacy
-- **Export/Import**: Export notes in various formats
-- **Backup**: Automatic backup of your notes
-- **Version History**: Track changes to your notes over time
-
 ### 🎨 Customization
 - **Theme Colors**: Choose from 8 different color themes
 - **Layout Options**: Customize the editor layout
@@ -57,27 +51,21 @@ A modern, feature-rich note-taking application built with Next.js, TypeScript, a
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/note-taking-website.git
-   cd note-taking-website
-   ```
-
-2. **Install dependencies**
+1. **Install dependencies**
    ```bash
    npm install
    # or
    yarn install
    ```
 
-3. **Run the development server**
+2. **Run the development server**
    ```bash
    npm run dev
    # or
    yarn dev
    ```
 
-4. **Open your browser**
+43. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
 
 ## 🛠️ Tech Stack

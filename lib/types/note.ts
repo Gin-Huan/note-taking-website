@@ -7,6 +7,7 @@ export interface Note {
   createdAt: Date;
   updatedAt: Date;
   isPinned: boolean;
+  isArchived: boolean;
   color: string;
 }
 

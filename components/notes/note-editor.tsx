@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Eye, 
   Edit3, 
@@ -12,6 +13,7 @@ import {
   Tag, 
   Palette,
   Pin,
+  AlertCircle,
 } from 'lucide-react';
 import {
   Popover,
@@ -51,7 +53,7 @@ const CATEGORIES = [
 ];
 
 export function NoteEditor() {
-  const { currentNote, updateNote, updateNoteMetadata, markNoteAsEdited, pendingNotes } = useNotesStore();
+  const { currentNote, updateNote, updateNoteMetadata, markNoteAsEdited, pendingNotes, updateNoteAPI, createNoteAPI, error } = useNotesStore();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -60,6 +62,7 @@ export function NoteEditor() {
   const [isPinned, setIsPinned] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [activeTab, setActiveTab] = useState('edit');
+  const [isPinLoading, setIsPinLoading] = useState(false);
 
   // Update local state when current note changes
   useEffect(() => {
@@ -73,18 +76,33 @@ export function NoteEditor() {
     }
   }, [currentNote]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!currentNote) return;
     
-    updateNote(currentNote.id, {
+    const noteData = {
       title: title || 'Untitled Note',
       content,
       tags,
       category,
       color,
       isPinned,
-    });
-  }, [currentNote, title, content, tags, category, color, isPinned, updateNote]);
+      isArchived: currentNote.isArchived || false,
+    };
+
+    try {
+      if (pendingNotes.has(currentNote.id)) {
+        // This is a new note, create it via API
+        await createNoteAPI(noteData, currentNote.id);
+      } else {
+        // This is an existing note, update it via API
+        await updateNoteAPI(currentNote.id, noteData);
+      }
+    } catch (error) {
+      console.error('Failed to save note:', error);
+      // Fallback to local update if API fails
+      updateNote(currentNote.id, noteData);
+    }
+  }, [currentNote, title, content, tags, category, color, isPinned, pendingNotes, createNoteAPI, updateNoteAPI, updateNote]);
 
   // Mark note as edited when user makes changes
   const markAsEdited = useCallback(() => {
@@ -92,17 +110,6 @@ export function NoteEditor() {
       markNoteAsEdited(currentNote.id);
     }
   }, [currentNote, pendingNotes, markNoteAsEdited]);
-
-  // Auto-save functionality
-  useEffect(() => {
-    if (!currentNote) return;
-
-    const timeoutId = setTimeout(() => {
-      handleSave();
-    }, 1000); // Auto-save after 1 second of inactivity
-
-    return () => clearTimeout(timeoutId);
-  }, [title, content, tags, category, color, isPinned, handleSave, currentNote]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
@@ -149,9 +156,29 @@ export function NoteEditor() {
     markAsEdited();
   };
 
-  const handlePinToggle = () => {
-    setIsPinned(!isPinned);
-    markAsEdited();
+  const handlePinToggle = async () => {
+    if (!currentNote) return;
+    
+    const newPinStatus = !isPinned;
+    setIsPinned(newPinStatus);
+    
+    // If this is a draft note, just mark as edited (will be saved when user clicks Save)
+    if (pendingNotes.has(currentNote.id)) {
+      markAsEdited();
+      return;
+    }
+    
+    // For existing notes, immediately update via API
+    setIsPinLoading(true);
+    try {
+      await updateNoteAPI(currentNote.id, { isPinned: newPinStatus });
+    } catch (error) {
+      console.error('Failed to update pin status:', error);
+      // Revert local state if API fails
+      setIsPinned(!newPinStatus);
+    } finally {
+      setIsPinLoading(false);
+    }
   };
 
   if (!currentNote) {
@@ -175,8 +202,26 @@ export function NoteEditor() {
         {isPending && (
           <div className="mb-3 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
             <p className="text-sm text-yellow-800 dark:text-yellow-200">
-              ✏️ This is a new note. Start typing to save it, or it will be removed if you switch away.
+              ✏️ This is a new note. Click the Save button to save it, or it will be removed if you switch away.
             </p>
+          </div>
+        )}
+        
+        {isPinned && !isPending && (
+          <div className="mb-3 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+            <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
+              <Pin className="h-4 w-4 fill-current" />
+              This note is pinned and will appear at the top of your notes list
+            </p>
+          </div>
+        )}
+        
+        {error && (
+          <div className="mb-3">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           </div>
         )}
         
@@ -192,10 +237,19 @@ export function NoteEditor() {
               variant={isPinned ? "default" : "outline"}
               size="sm"
               onClick={handlePinToggle}
+              disabled={isPinLoading}
+              className={cn(
+                isPinned && "bg-amber-500 hover:bg-amber-600 text-white border-amber-500",
+                isPinLoading && "opacity-50"
+              )}
             >
-              <Pin className={cn("h-4 w-4", isPinned && "fill-current")} />
+              <Pin className={cn("h-4 w-4", isPinned && "fill-current", isPinLoading && "animate-spin")} />
             </Button>
-            <Button onClick={handleSave} size="sm">
+            <Button 
+              onClick={handleSave} 
+              size="sm"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+            >
               <Save className="h-4 w-4 mr-2" />
               Save
             </Button>

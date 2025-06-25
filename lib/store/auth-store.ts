@@ -19,7 +19,7 @@ interface AuthState {
   // Actions
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (firstName: string, lastName: string, email: string, password: string) => Promise<void>;
   getCurrentUser: () => Promise<void>;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
@@ -105,17 +105,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  register: async (name: string, email: string, password: string) => {
-    const response = await apiClient.register(name, email, password);
+  register: async (firstName: string, lastName: string, email: string, password: string) => {
+    const response = await apiClient.register(firstName, lastName, email, password);
     
     // Store the token in localStorage
-    if (response.token) {
-      localStorage.setItem('auth_token', response.token);
+    if (response?.data?.access_token) {
+      localStorage.setItem('auth_token', response.data.access_token);
     }
     
     // Set the user data
     set({ 
-      user: response.user, 
+      user: response.data.user, 
       isAuthenticated: true,
       isInitialized: true
     });
