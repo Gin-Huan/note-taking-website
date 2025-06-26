@@ -158,7 +158,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   },
 
   updateNoteAPI: async (id, updates) => {
-    set({ error: null, saveMessage: '' });
+    set({ isLoading: true, error: null, saveMessage: '' });
     try {
       const response = await apiClient.updateNote(id, updates);
       const updatedNote = {
@@ -174,6 +174,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
           return {
             notes: state.notes.filter(note => note.id !== id),
             currentNote: state.currentNote?.id === id ? null : state.currentNote,
+            isLoading: false,
           };
         }
         
@@ -183,26 +184,34 @@ export const useNotesStore = create<NotesState>((set, get) => ({
           saveMessage: 'Note saved successfully!',
           notes: [updatedNote, ...otherNotes],
           currentNote: state.currentNote?.id === id ? updatedNote : state.currentNote,
+          isLoading: false,
         };
       });
     } catch (error) {
       console.error('Failed to update note:', error);
-      set({ error: error instanceof Error ? error.message : 'Failed to update note' });
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to update note',
+        isLoading: false 
+      });
     }
   },
 
   deleteNoteAPI: async (id) => {
-    set({ error: null });
+    set({ isLoading: true, error: null });
     try {
       await apiClient.deleteNote(id);
       set((state) => ({
         notes: state.notes.filter((note) => note.id !== id),
         currentNote: state.currentNote?.id === id ? null : state.currentNote,
         pendingNotes: new Set(Array.from(state.pendingNotes).filter(noteId => noteId !== id)),
+        isLoading: false,
       }));
     } catch (error) {
       console.error('Failed to delete note:', error);
-      set({ error: error instanceof Error ? error.message : 'Failed to delete note' });
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to delete note',
+        isLoading: false 
+      });
     }
   },
 
@@ -275,8 +284,6 @@ export const useNotesStore = create<NotesState>((set, get) => ({
         ...updates, 
         updatedAt: shouldUpdateTimestamp ? now : updatedNote.updatedAt
       };
-
-      console.log('updatedNoteWithChanges', updatedNoteWithChanges);
 
       // Only move note to top if content or title changed
       if (shouldUpdateTimestamp) {

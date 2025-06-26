@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useNotesStore } from '@/lib/store/notes-store';
 import { Note } from '@/lib/types/note';
-import { cn, convertUTCDateToLocalDate } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { useIntersectionObserver } from '@/hooks/use-debounce';
 
 interface NotesListProps {
@@ -65,6 +65,7 @@ export function NotesList({ onNoteClick }: NotesListProps) {
   } = useNotesStore();
 
   const [pinLoadingStates, setPinLoadingStates] = useState<Set<string>>(new Set());
+  const [archiveLoadingStates, setArchiveLoadingStates] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -148,6 +149,7 @@ export function NotesList({ onNoteClick }: NotesListProps) {
   };
 
   const handleArchiveToggle = async (note: Note) => {
+    setArchiveLoadingStates(prev => new Set(prev).add(note.id));
     try {
       // Update via API to persist the archive/unarchive status
       await updateNoteAPI(note.id, { isArchived: !note.isArchived });
@@ -164,6 +166,12 @@ export function NotesList({ onNoteClick }: NotesListProps) {
       console.error('Failed to update archive status:', error);
       // Fallback to local update if API fails
       updateNoteMetadata(note.id, { isArchived: !note.isArchived });
+    } finally {
+      setArchiveLoadingStates(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(note.id);
+        return newSet;
+      });
     }
   };
 
@@ -326,10 +334,15 @@ export function NotesList({ onNoteClick }: NotesListProps) {
                       'p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md group relative',
                       currentNote?.id === note.id
                         ? 'border-primary bg-primary/5 shadow-sm'
-                        : 'border-border hover:border-primary/50',
+                        : 'hover:border-primary/50',
                       isPending && 'border-dashed border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10',
-                      note.isPinned && 'border-amber-300 bg-amber-50/30 dark:bg-amber-900/10 shadow-sm'
+                      note.isPinned && 'bg-amber-50/30 dark:bg-amber-900/10 shadow-sm'
                     )}
+                    style={{
+                      backgroundColor: !isPending && currentNote?.id !== note.id 
+                        ? note.color 
+                        : undefined
+                    }}
                   >
                     {/* Pending indicator */}
                     {isPending && (
@@ -380,8 +393,9 @@ export function NotesList({ onNoteClick }: NotesListProps) {
                                   e.stopPropagation();
                                   handleArchiveToggle(note);
                                 }}
+                                disabled={archiveLoadingStates.has(note.id)}
                               >
-                                <Archive className="mr-2 h-4 w-4" />
+                                <Archive className={cn("mr-2 h-4 w-4", archiveLoadingStates.has(note.id) && "animate-spin")} />
                                 Archive
                               </DropdownMenuItem>
                             ) : (
@@ -391,8 +405,9 @@ export function NotesList({ onNoteClick }: NotesListProps) {
                                     e.stopPropagation();
                                     handleArchiveToggle(note);
                                   }}
+                                  disabled={archiveLoadingStates.has(note.id)}
                                 >
-                                  <RotateCcw className="mr-2 h-4 w-4" />
+                                  <RotateCcw className={cn("mr-2 h-4 w-4", archiveLoadingStates.has(note.id) && "animate-spin")} />
                                   Unarchive
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
@@ -439,7 +454,7 @@ export function NotesList({ onNoteClick }: NotesListProps) {
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {isPending ? 'Just created' : formatDistanceToNow(convertUTCDateToLocalDate(note.updatedAt), { addSuffix: true })}
+                        {isPending ? 'Just created' : formatDistanceToNow((note.updatedAt), { addSuffix: true })}
                       </span>
                     </div>
                   </div>
@@ -481,9 +496,10 @@ export function NotesList({ onNoteClick }: NotesListProps) {
             <AlertDialogCancel onClick={cancelDelete}>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmDelete}
+              disabled={isLoading}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete Note
+              {isLoading ? 'Deleting...' : 'Delete Note'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

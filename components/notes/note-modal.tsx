@@ -74,7 +74,8 @@ export function NoteModal({ isOpen, onClose, noteId }: NoteModalProps) {
     pendingNotes, 
     updateNoteAPI, 
     createNoteAPI, 
-    error
+    error,
+    isLoading,
   } = useNotesStore();
   
   const [title, setTitle] = useState('');
@@ -287,9 +288,10 @@ export function NoteModal({ isOpen, onClose, noteId }: NoteModalProps) {
                   onClick={handleSave} 
                   size="sm"
                   className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+                  disabled={isLoading}
                 >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save
+                  <Save className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+                  {isLoading ? 'Saving...' : 'Save'}
                 </Button>
               </div>
             </div>

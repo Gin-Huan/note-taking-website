@@ -60,7 +60,8 @@ export function NoteEditor() {
     markNoteAsEdited, 
     pendingNotes, 
     updateNoteAPI, 
-    createNoteAPI, 
+    createNoteAPI,
+    isLoading,
   } = useNotesStore();
   
   const [title, setTitle] = useState('');
@@ -260,9 +261,13 @@ export function NoteEditor() {
             >
               <Pin className={cn("h-4 w-4", isPinLoading && "animate-spin")} />
             </Button>
-            <Button onClick={handleSave} size="sm">
-              <Save className="h-4 w-4 mr-2" />
-              Save
+            <Button 
+              onClick={handleSave} 
+              size="sm"
+              disabled={isLoading}
+            >
+              <Save className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+              {isLoading ? 'Saving...' : 'Save'}
             </Button>
           </div>
         </div>
