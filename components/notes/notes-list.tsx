@@ -339,9 +339,7 @@ export function NotesList({ onNoteClick }: NotesListProps) {
                       note.isPinned && 'bg-amber-50/30 dark:bg-amber-900/10 shadow-sm'
                     )}
                     style={{
-                      backgroundColor: !isPending && currentNote?.id !== note.id 
-                        ? note.color 
-                        : undefined
+                      backgroundColor: note.color
                     }}
                   >
                     {/* Pending indicator */}
@@ -454,7 +452,7 @@ export function NotesList({ onNoteClick }: NotesListProps) {
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {isPending ? 'Just created' : formatDistanceToNow((note.updatedAt), { addSuffix: true })}
+                        {isPending ? 'Just created' : formatDistanceToNow(note.updatedAt, { addSuffix: true })}
                       </span>
                     </div>
                   </div>
